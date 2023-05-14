@@ -46,6 +46,7 @@
 #include "dict.h"
 #include "zmalloc.h"
 #include "redisassert.h"
+#include "highwayhash.h"
 
 /* Using dictEnableResize() / dictDisableResize() we make possible to disable
  * resizing and rehashing of the hash table as needed. This is very important
@@ -92,8 +93,14 @@ static void dictSetNext(dictEntry *de, dictEntry *next);
 
 static uint8_t dict_hash_function_seed[16];
 
-void dictSetHashFunctionSeed(uint8_t *seed) {
+void dictSetHashFunctionSeed(const uint8_t *seed) {
     memcpy(dict_hash_function_seed,seed,sizeof(dict_hash_function_seed));
+    const uint64_t highway_hash_seed[4] =
+            {seed[0] | (seed[1] << 8) | (seed[2] << 16) | (seed[3] << 24),
+             seed[4] | (seed[5] << 8) | (seed[6] << 16) | (seed[7] << 24),
+             seed[8] | (seed[9] << 8) | (seed[10] << 16) | (seed[11] << 24),
+             seed[12] | (seed[13] << 8) | (seed[14] << 16) | (seed[15] << 24)};
+    HighwayHashReset(highway_hash_seed);
 }
 
 uint8_t *dictGetHashFunctionSeed(void) {
@@ -107,11 +114,21 @@ uint64_t siphash(const uint8_t *in, const size_t inlen, const uint8_t *k);
 uint64_t siphash_nocase(const uint8_t *in, const size_t inlen, const uint8_t *k);
 
 uint64_t dictGenHashFunction(const void *key, size_t len) {
-    return siphash(key,len,dict_hash_function_seed);
+//    return siphash(key,len,dict_hash_function_seed);
+    return HighwayHash64(key, len);
 }
 
 uint64_t dictGenCaseHashFunction(const unsigned char *buf, size_t len) {
-    return siphash_nocase(buf,len,dict_hash_function_seed);
+    uint8_t key[len];
+    for(int i = 0; i < len; i++) {
+        if (buf[i] >= 'A' && buf[i] <= 'Z') {
+            key[i] = buf[i] + ('a' - 'A');
+        } else {
+            key[i] = buf[i];
+        }
+    }
+    return HighwayHash64(key, len);
+//    return siphash_nocase(buf,len,dict_hash_function_seed);
 }
 
 /* --------------------- dictEntry pointer bit tricks ----------------------  */
@@ -295,7 +312,7 @@ int dictTryExpand(dict *d, unsigned long size) {
 int dictRehash(dict *d, int n) {
     int empty_visits = n*10; /* Max number of empty buckets to visit. */
     if (dict_can_resize == DICT_RESIZE_FORBID || !dictIsRehashing(d)) return 0;
-    if (dict_can_resize == DICT_RESIZE_AVOID && 
+    if (dict_can_resize == DICT_RESIZE_AVOID &&
         (DICTHT_SIZE(d->ht_size_exp[1]) / DICTHT_SIZE(d->ht_size_exp[0]) < dict_force_resize_ratio))
     {
         return 0;

@@ -40,6 +40,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include "highwayhash.h"
 
 #define DICT_OK 0
 #define DICT_ERR 1
@@ -217,7 +218,7 @@ void dictEmpty(dict *d, void(callback)(dict*));
 void dictSetResizeEnabled(dictResizeEnable enable);
 int dictRehash(dict *d, int n);
 int dictRehashMilliseconds(dict *d, int ms);
-void dictSetHashFunctionSeed(uint8_t *seed);
+void dictSetHashFunctionSeed(const uint8_t *seed);
 uint8_t *dictGetHashFunctionSeed(void);
 unsigned long dictScan(dict *d, unsigned long v, dictScanFunction *fn, void *privdata);
 unsigned long dictScanDefrag(dict *d, unsigned long v, dictScanFunction *fn, dictDefragFunctions *defragfns, void *privdata);
