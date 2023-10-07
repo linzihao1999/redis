@@ -147,6 +147,7 @@ else
 ifeq ($(uname_S),Darwin)
 	# Darwin
 	FINAL_LIBS+= -ldl
+	FINAL_CFLAGS+= -D_DARWIN_C_SOURCE
 	# Homebrew's OpenSSL is not linked to /usr/local to avoid
 	# conflicts with the system's LibreSSL installation so it
 	# must be referenced explicitly during build.
