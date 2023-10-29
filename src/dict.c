@@ -79,7 +79,7 @@ typedef struct {
 /* -------------------------- private prototypes ---------------------------- */
 
 static int _dictExpandIfNeeded(dict *d);
-static signed char _dictNextExp(unsigned long size);
+static unsigned char _dictNextExp(unsigned long size);
 static int _dictInit(dict *d, dictType *type);
 static dictEntry *dictGetNext(const dictEntry *de);
 static dictEntry **dictGetNextRef(dictEntry *de);
@@ -174,7 +174,7 @@ static inline int entryHasValue(const dictEntry *de) {
 static void _dictReset(dict *d, int htidx)
 {
     d->ht_table[htidx] = NULL;
-    d->ht_size_exp[htidx] = -1;
+    d->ht_size_exp[htidx] = 0;
     d->ht_used[htidx] = 0;
 }
 
@@ -235,7 +235,7 @@ int _dictExpand(dict *d, unsigned long size, int* malloc_failed)
     /* the new hash table */
     dictEntry **new_ht_table;
     unsigned long new_ht_used;
-    signed char new_ht_size_exp = _dictNextExp(size);
+    unsigned char new_ht_size_exp = _dictNextExp(size);
 
     /* Detect overflows */
     size_t newsize = 1ul<<new_ht_size_exp;
@@ -1399,7 +1399,7 @@ static int _dictExpandIfNeeded(dict *d)
     if (dictIsRehashing(d)) return DICT_OK;
 
     /* If the hash table is empty expand it to the initial size. */
-    if (DICTHT_SIZE(d->ht_size_exp[0]) == 0) return dictExpand(d, DICT_HT_INITIAL_SIZE);
+    if (d->ht_size_exp[0] == 0) return dictExpand(d, DICT_HT_INITIAL_SIZE);
 
     /* If we reached the 1:1 ratio, and we are allowed to resize the hash
      * table (global setting) or we should avoid it but the ratio between
@@ -1417,18 +1417,18 @@ static int _dictExpandIfNeeded(dict *d)
     return DICT_OK;
 }
 
-/* TODO: clz optimization */
 /* Our hash table capability is a power of two */
-static signed char _dictNextExp(unsigned long size)
+static unsigned char _dictNextExp(unsigned long size)
 {
-    unsigned char e = DICT_HT_INITIAL_EXP;
-
+    if (size <= 1<<DICT_HT_INITIAL_EXP) return DICT_HT_INITIAL_EXP;
     if (size >= LONG_MAX) return (8*sizeof(long)-1);
-    while(1) {
-        if (((unsigned long)1<<e) >= size)
-            return e;
-        e++;
-    }
+
+    // Calculate e based on the number of leading zeros
+    unsigned char e = (sizeof(long) * 8) - __builtin_clzl(size);
+
+    return (unsigned long)1<<(e-1) >= size ? e-1 : e;
+    // 0000 1100
+    // 0001 0000
 }
 
 /* Finds and returns the position within the dict where the provided key should
@@ -1439,8 +1439,10 @@ void *dictFindPositionForInsert(dict *d, const void *key, dictEntry **existing) 
     unsigned long idx, table;
     dictEntry *he;
     uint64_t hash = dictHashKey(d, key);
-    if (existing) *existing = NULL;
-    if (dictIsRehashing(d)) _dictRehashStep(d);
+    if (existing) 
+        *existing = NULL;
+    if (dictIsRehashing(d)) 
+        _dictRehashStep(d);
 
     /* Expand the hash table if needed */
     if (_dictExpandIfNeeded(d) == DICT_ERR)

@@ -70,8 +70,8 @@ typedef struct dictType {
      * flag is set. */
 } dictType;
 
-#define DICTHT_SIZE(exp) ((exp) == -1 ? 0 : (unsigned long)1<<(exp))
-#define DICTHT_SIZE_MASK(exp) ((exp) == -1 ? 0 : (DICTHT_SIZE(exp))-1)
+#define DICTHT_SIZE(exp) (!(exp) ? 0 : (unsigned long)1<<(exp))
+#define DICTHT_SIZE_MASK(exp) (!(exp) ? 0 : (DICTHT_SIZE(exp))-1)
 
 struct dict {
     dictType *type;
@@ -83,7 +83,7 @@ struct dict {
 
     /* Keep small vars at end for optimal (minimal) struct padding */
     int16_t pauserehash; /* If >0 rehashing is paused (<0 indicates coding error) */
-    signed char ht_size_exp[2]; /* exponent of size. (size = 1<<exp) */
+    unsigned char ht_size_exp[2]; /* exponent of size. (size = 1<<exp) */   
 };
 
 /* If safe is set to 1 this is a safe iterator, that means, you can call
